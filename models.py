@@ -681,9 +681,13 @@ class GreenhouseMLSystem:
         return True
     
     # ... [Rest of the GreenhouseMLSystem class is largely correct, with minor robustness improvements] ...
+    # In models.py
+
     def train_all_models(self):
+        """Train all ML models using historical data."""
         logger.info("Training all ML models...")
         if not os.path.exists(config.SENSOR_DATA_PATH):
+            logger.info(f"Sensor data not found at {config.SENSOR_DATA_PATH}. Generating new data...")
             historical_generator = HistoricalDataGenerator(days=365)
             historical_df = historical_generator.generate_historical_data()
             historical_df.to_csv(config.SENSOR_DATA_PATH, index=False)
@@ -691,21 +695,37 @@ class GreenhouseMLSystem:
         df = pd.read_csv(config.SENSOR_DATA_PATH, parse_dates=['timestamp'])
         df.dropna(inplace=True)
 
-        features_df = df[['timestamp', 'temperature', 'humidity', 'soil_moisture', 'light', 'co2', 'soil_ph', 'soil_ec']]
+        # FIX: Define the core features that are used for training.
+        # This decouples the model from any extra columns in the CSV.
+        core_features = [
+            'timestamp', 'temperature', 'humidity', 'soil_moisture',
+            'light', 'co2', 'soil_ph', 'soil_ec'
+        ]
         
+        # Ensure all required columns are present
+        if not all(feature in df.columns for feature in core_features):
+            raise ValueError(f"CSV file is missing one of the required training columns: {core_features}")
+            
+        features_df = df[core_features]
+
+        # Train irrigation classifier
         self.irrigation_classifier.train(features_df, df['water_needed'])
         self.irrigation_classifier.save()
         
+        # Train water volume regressor
         self.water_volume_regressor.train(features_df, df['water_volume'])
         self.water_volume_regressor.save()
         
+        # Train soil moisture forecaster
         self.soil_forecaster.train(features_df, df['soil_moisture'])
         self.soil_forecaster.save()
 
+        # Train system health monitor
         self.system_health_monitor.train(features_df)
         self.system_health_monitor.save()
 
-        self.disease_detector.train([], []) # Simulated training
+        # Train disease detector (simulated)
+        self.disease_detector.train([], [])
         self.disease_detector.save()
         
         logger.info("All ML models trained successfully")
@@ -791,3 +811,4 @@ if __name__ == "__main__":
     disease_image = simulator.get_disease_image()
     detection = ml_system.detect_disease(disease_image)
     print("\nDisease Detection:", detection)
+
