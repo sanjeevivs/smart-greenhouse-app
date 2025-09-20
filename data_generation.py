@@ -192,37 +192,47 @@ class GreenhouseEnvironment:
         self._update_disease_factors()
         self._update_plant_health()
 
+    # In data_generation.py
+
     def get_sensor_readings(self):
-        """Get realistic sensor readings with noise, drift, and possible failures"""
+        """
+        Get realistic sensor readings with noise, drift, and possible failures.
+        This now returns a dictionary containing only the core sensor values
+        and another dictionary with all simulation metadata.
+        """
+        # Base sensor values that a real device would report
         base_readings = {
-            'timestamp': self.current_date, 'temperature': self.temperature, 'humidity': self.humidity,
-            'soil_moisture': self.soil_moisture, 'light': self.light, 'co2': self.co2, 'soil_ph': self.soil_ph,
-            'soil_ec': self.soil_ec, 'plant_health': self._plant_health, 'growth_stage': self._growth_stage,
-            'days_in_stage': self._days_in_stage, 'water_level': self._water_level, **self._disease_factors
+            'timestamp': self.current_date,
+            'temperature': self.temperature,
+            'humidity': self.humidity,
+            'soil_moisture': self.soil_moisture,
+            'light': self.light,
+            'co2': self.co2,
+            'soil_ph': self.soil_ph,
+            'soil_ec': self.soil_ec,
+            'water_level': self._water_level,
         }
-        
+
+        # Apply sensor noise, drift, and failures
         final_readings = {}
         for sensor, value in base_readings.items():
             if not isinstance(value, (int, float)):
                 final_readings[sensor] = value
                 continue
             
-            sensor_type = sensor # Default to key name
-            if 'temperature' in sensor: sensor_type = 'temperature'
-            elif 'humidity' in sensor: sensor_type = 'humidity'
-            elif 'soil_moisture' in sensor: sensor_type = 'soil_moisture'
-            elif 'soil_ph' in sensor: sensor_type = 'soil_ph'
-            elif 'soil_ec' in sensor: sensor_type = 'soil_ec'
-            elif 'light' in sensor: sensor_type = 'light'
-            elif 'co2' in sensor: sensor_type = 'co2'
-            else: # It's a derived value like plant_health, don't add noise/drift
-                final_readings[sensor] = value
-                continue
-
-            value = self._apply_sensor_drift(value, sensor_type)
-            value = self._add_sensor_noise(value, sensor_type)
-            value = self._simulate_sensor_failure(value, sensor_type)
+            # Use the key name as the sensor type for applying effects
+            value = self._apply_sensor_drift(value, sensor)
+            value = self._add_sensor_noise(value, sensor)
+            value = self._simulate_sensor_failure(value, sensor)
             final_readings[sensor] = value
+
+        # Add simulation-specific metadata separately so it doesn't pollute the sensor data
+        final_readings['plant_health'] = self._plant_health
+        final_readings['growth_stage'] = self._growth_stage
+        final_readings['days_in_stage'] = self._days_in_stage
+        
+        # Add disease factors under a nested dictionary for clarity
+        final_readings['disease_factors'] = self._disease_factors.copy()
 
         return final_readings
 
@@ -341,3 +351,4 @@ class RealTimeDataSimulator:
     def get_disease_image(self):
         """Get a simulated disease image path"""
         return self.environment.get_disease_image()
+
